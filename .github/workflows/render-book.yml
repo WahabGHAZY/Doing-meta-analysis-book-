@@ -44,6 +44,7 @@ jobs:
             "tidyverse","ggplot2","dplyr","forcats","readxl","openxlsx",
             "kableExtra","DT","OpenImageR","esc","plotrix"
           ))'
+          Rscript -e 'remotes::install_version("ggplot2", version = "3.4.4", repos = "https://cran.r-project.org", upgrade = "never")'
           Rscript -e 'remotes::install_github("MathiasHarrer/dmetar", upgrade = "never", force = TRUE, auth_token = Sys.getenv("GITHUB_PAT"))'
           Rscript -e 'if (!requireNamespace("dmetar", quietly = TRUE)) stop("dmetar failed to install"); message("dmetar OK at: ", find.package("dmetar"))'
 
