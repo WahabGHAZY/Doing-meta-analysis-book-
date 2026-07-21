@@ -1,0 +1,77 @@
+name: Render and Deploy Book
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev \
+            libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev \
+            libpng-dev libtiff5-dev libjpeg-dev
+
+      - name: Install R packages
+        run: |
+          Rscript -e 'install.packages(c(
+            "bookdown","rmarkdown","bslib","remotes","knitr",
+            "meta","metafor","netmeta","dosresmeta","MAd","metasens",
+            "brms","rstan","lavaan","semPlot","clubSandwich",
+            "tidyverse","ggplot2","dplyr","forcats","readxl","openxlsx",
+            "kableExtra","DT","OpenImageR","esc","plotrix"
+          ))'
+          Rscript -e 'remotes::install_github("MathiasHarrer/dmetar", upgrade = "never")'
+
+      - name: Patch known gitbook theme bug
+        run: |
+          Rscript -e '
+            lines <- readLines("index.Rmd", warn = FALSE);
+            idx <- grep("theme:\\s*!expr\\s*bslib::bs_theme\\(\\)", lines);
+            if (length(idx)) {
+              lines[idx] <- sub("^(\\s*)", "\\1# ", lines[idx]);
+              writeLines(lines, "index.Rmd")
+            }
+          '
+
+      - name: Render book (continue past broken examples)
+        run: |
+          Rscript -e '
+            knitr::opts_chunk$set(error = TRUE);
+            bookdown::render_book("index.Rmd", "bookdown::gitbook")
+          '
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _book
+
+  deploy:
+    needs: render
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
