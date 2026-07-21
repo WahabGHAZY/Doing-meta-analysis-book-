@@ -47,6 +47,25 @@ jobs:
           Rscript -e 'remotes::install_github("MathiasHarrer/dmetar", upgrade = "never", force = TRUE, auth_token = Sys.getenv("GITHUB_PAT"))'
           Rscript -e 'if (!requireNamespace("dmetar", quietly = TRUE)) stop("dmetar failed to install"); message("dmetar OK at: ", find.package("dmetar"))'
 
+      - name: Auto-install every package the book's chapters actually use
+        run: |
+          Rscript -e '
+            rmd_files <- list.files(pattern = "\\.Rmd$", full.names = TRUE)
+            lib_calls <- unlist(lapply(rmd_files, function(f) {
+              txt <- readLines(f, warn = FALSE)
+              regmatches(txt, gregexpr(
+                "(?<=\\b(?:library|require)\\()\\s*[\"\x27]?[A-Za-z0-9._]+[\"\x27]?(?=\\s*\\))",
+                txt, perl = TRUE
+              ))
+            }))
+            pkgs <- unique(gsub("[\"\x27[:space:]]", "", unlist(lib_calls)))
+            pkgs <- setdiff(pkgs, c("dmetar"))  # already installed separately
+            missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+            message("Found ", length(pkgs), " packages referenced, ", length(missing), " missing: ",
+                    paste(missing, collapse = ", "))
+            if (length(missing)) install.packages(missing)
+          '
+
       - name: Patch known gitbook theme bug
         run: |
           Rscript -e '
